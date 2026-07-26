@@ -76,7 +76,7 @@ src/zmp/
 ├── installer.py      # Установка / удаление модов
 ├── icon.ico          # Иконка приложения (Windows)
 ├── icon.png          # Иконка приложения
-└── fonts/            # JetBrains Mono
+└── fonts/            # Используемые шрифты
 ```
 
 ## Контакты
