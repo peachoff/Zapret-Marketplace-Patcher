@@ -22,7 +22,9 @@ EXE_NAME=$(find "${APPDIR}/usr/bin" -maxdepth 1 -type f -executable | head -1)
 if [ -z "$EXE_NAME" ]; then
     EXE_NAME="${APPDIR}/usr/bin/ZMP"
 fi
-mv "$EXE_NAME" "${APPDIR}/usr/bin/${APP_NAME}"
+if [ "$(basename "$EXE_NAME")" != "${APP_NAME}" ]; then
+    mv "$EXE_NAME" "${APPDIR}/usr/bin/${APP_NAME}"
+fi
 
 # Desktop entry
 cat > "${APPDIR}/${APP_NAME}.desktop" << EOF
