@@ -71,6 +71,7 @@ jobs:
 
       - name: Build AppImage
         run: |
+          poetry run pyinstaller build/linux_appimage.spec --noconfirm
           chmod +x build/build_appimage.sh
           cd build && bash build_appimage.sh "v${GITHUB_REF_NAME#v}"
 

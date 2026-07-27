@@ -39,7 +39,7 @@ EOF
 cp "${APPDIR}/${APP_NAME}.desktop" "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
 
 # Icon
-cp "$(pwd)/../src/zmp/icon.ico" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/ZMP.png" 2>/dev/null || true
+cp "$(pwd)/../src/zmp/icon.png" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/ZMP.png" 2>/dev/null || true
 
 # Download appimagetool if not present
 APPIMAGETOOL="$(pwd)/appimagetool"
