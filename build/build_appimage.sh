@@ -17,14 +17,25 @@ mkdir -p "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
 cp -r "${BUILD_DIR}/${APP_NAME}/"* "${APPDIR}/usr/bin/"
 chmod +x "${APPDIR}/usr/bin/${APP_NAME}"
 
-# Find the actual executable name
-EXE_NAME=$(find "${APPDIR}/usr/bin" -maxdepth 1 -type f -executable | head -1)
-if [ -z "$EXE_NAME" ]; then
-    EXE_NAME="${APPDIR}/usr/bin/ZMP"
+# PyInstaller onedir output is dist/ZMP/ZMP (name matches the spec).
+# If the binary already has the expected name, nothing to rename.
+EXE_NAME="${APPDIR}/usr/bin/${APP_NAME}"
+if [ ! -x "$EXE_NAME" ]; then
+    # Fallback: find any executable and rename it to the app name.
+    FOUND=$(find "${APPDIR}/usr/bin" -maxdepth 1 -type f -executable | head -1)
+    if [ -n "$FOUND" ] && [ "$(basename "$FOUND")" != "${APP_NAME}" ]; then
+        mv "$FOUND" "$EXE_NAME"
+    fi
 fi
-if [ "$(basename "$EXE_NAME")" != "${APP_NAME}" ]; then
-    mv "$EXE_NAME" "${APPDIR}/usr/bin/${APP_NAME}"
-fi
+
+# AppImage entry point
+cat > "${APPDIR}/AppRun" << EOF
+#!/bin/sh
+HERE="\$(dirname "\$(readlink -f "\$0")")"
+export PATH="\${HERE}/usr/bin:\$PATH"
+exec "\${HERE}/usr/bin/${APP_NAME}" "\$@"
+EOF
+chmod +x "${APPDIR}/AppRun"
 
 # Desktop entry
 cat > "${APPDIR}/${APP_NAME}.desktop" << EOF
