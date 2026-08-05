@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия (например 1.2.3). AppImage будет назван ZMP-<версия>-x86_64.AppImage. При запуске по тегу берётся из тега.'
+        required: false
+        default: 'dev'
 
 permissions:
   contents: write
@@ -71,9 +76,15 @@ jobs:
 
       - name: Build AppImage
         run: |
+          echo "Building at commit: $GITHUB_SHA"
           poetry run pyinstaller build/linux_appimage.spec --noconfirm
           chmod +x build/build_appimage.sh
-          cd build && bash build_appimage.sh "v${GITHUB_REF_NAME#v}"
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "Using version: v${VERSION}"
+          cd build && bash build_appimage.sh "v${VERSION}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
