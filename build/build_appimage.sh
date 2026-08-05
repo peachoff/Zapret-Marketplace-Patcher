@@ -3,8 +3,9 @@ set -euo pipefail
 
 APP_NAME="ZMP"
 VERSION="${1:-dev}"
-DIST_DIR="$(pwd)/../dist"
-BUILD_DIR="$(pwd)/../dist"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIST_DIR="${SCRIPT_DIR}/../dist"
+BUILD_DIR="${SCRIPT_DIR}/../dist"
 
 # AppImage directory structure
 APPDIR="${BUILD_DIR}/${APP_NAME}.AppDir"
@@ -43,11 +44,17 @@ EOF
 
 cp "${APPDIR}/${APP_NAME}.desktop" "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
 
-# Icon
-cp "$(pwd)/../src/zmp/icon.png" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/ZMP.png" 2>/dev/null || true
+# Icon: appimagetool requires <AppName>.png in the AppDir root.
+ICON_SRC="${SCRIPT_DIR}/../src/zmp/icon.png"
+if [ -f "$ICON_SRC" ]; then
+    cp "$ICON_SRC" "${APPDIR}/${APP_NAME}.png"
+    cp "$ICON_SRC" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_NAME}.png"
+else
+    echo "WARNING: icon not found at ${ICON_SRC}" >&2
+fi
 
 # Download appimagetool if not present
-APPIMAGETOOL="$(pwd)/appimagetool"
+APPIMAGETOOL="${SCRIPT_DIR}/appimagetool"
 if [ ! -f "$APPIMAGETOOL" ]; then
     curl -fsSL -o "$APPIMAGETOOL" \
         "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
