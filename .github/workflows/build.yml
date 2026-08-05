@@ -4,12 +4,18 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия без буквы v (например 1.2.3). Используется для всех артефактов и тега v<версия>.'
+        required: true
+        default: '1.0.0'
 
 permissions:
   contents: write
 
 env:
   PYTHON_VERSION: "3.12"
+  APP_VERSION: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || (startsWith(github.ref, 'refs/tags/') && github.ref_name || 'vdev') }}
 
 jobs:
   build-windows:
@@ -33,11 +39,18 @@ jobs:
       - name: Build portable exe
         run: poetry run pyinstaller build/win.spec --noconfirm
 
+      - name: Package Windows build
+        shell: pwsh
+        run: |
+          $zip = "dist/ZMP-${{ env.APP_VERSION }}.zip"
+          Compress-Archive -Path "dist/ZMP/*" -DestinationPath $zip
+          Write-Host "Packaged: $zip"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ZMP-windows
-          path: dist/ZMP/
+          path: dist/ZMP-${{ env.APP_VERSION }}.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -71,27 +84,47 @@ jobs:
 
       - name: Build AppImage
         run: |
+          echo "Building at commit: $GITHUB_SHA"
+          echo "Using version: ${{ env.APP_VERSION }}"
           poetry run pyinstaller build/linux_appimage.spec --noconfirm
           chmod +x build/build_appimage.sh
-          cd build && bash build_appimage.sh "v${GITHUB_REF_NAME#v}"
+          cd build && bash build_appimage.sh "${{ env.APP_VERSION }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ZMP-linux
-          path: dist/ZMP-*.AppImage
+          path: dist/ZMP-${{ env.APP_VERSION }}-x86_64.AppImage
 
   release:
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Create and push version tag if missing
+        run: |
+          TAG="${{ env.APP_VERSION }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists, skipping"
+          else
+            git tag "${TAG}"
+            git push origin "refs/tags/${TAG}"
+            echo "Tag ${TAG} created and pushed"
+          fi
+
       - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.APP_VERSION }}
           files: |
-            ZMP-windows/**
-            ZMP-linux/**
+            artifacts/ZMP-windows/**
+            artifacts/ZMP-linux/**
           generate_release_notes: true
