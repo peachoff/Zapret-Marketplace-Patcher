@@ -2,31 +2,29 @@
   <img src="src/zmp/icon.png" width="180" alt="ZMP icon"/>
 </p>
 
-<h1 align="center">ZMP — Zapret Marketplace Patcher</h1>
+<h1 align="center">ZMP — Zapret Modifications Patcher</h1>
 
 <p align="center">
-  Нативный десктопный клиент для установки модов из <a href="https://goshkow.com/marketplace">Zapret Marketplace</a> в <b>zapret-discord-youtube</b> / <b>zapret2</b>.
+  Нативный десктопный клиент для установки модов из пользовательских репозиториев на <b>zapret-discord-youtube</b> и <b>zapret2</b>.
 </p>
 
 ---
 
 ## Возможности
 
-- **Каталог модов** — просмотр, поиск и установка модов из [Marketplace](https://goshkow.com/zapret-hub/marketplace) одним кликом
-- **Управление** — список установленных модов с информацией о версии, авторе и совместимости
-- **Установка по slug** — ручная установка мода по короткому имени
-- **Безопасное удаление** — чистое удаление модов (файлы, bat-скрипты, списки)
-- **Автоподстановка папки** — путь к zapret сохраняется между сессиями
+- **Каталог модов** — просмотр, поиск и установка модов из репозиториев github одним кликом.
+- **Управление** — список установленных модов с информацией о версии, авторе и совместимости.
+- **Автоподстановка папки** — путь к zapret сохраняется между сессиями.
 
 ## Установка
 
 ### Windows (portable)
 
-Скачайте актуальный релиз из [Releases](https://github.com/peachoff/Zapret-Marketplace-Patcher/releases) — файл `.exe` не требует установки.
+Скачайте актуальный релиз из [Releases](https://github.com/peachoff/Zapret-Modifications-Patcher/releases) — файл `.exe` не требует установки.
 
 ### Linux (AppImage)
 
-Скачайте `.AppImage` из [Releases](https://github.com/peachoff/Zapret-Marketplace-Patcher/releases):
+Скачайте `.AppImage` из [Releases](https://github.com/peachoff/Zapret-Modifications-Patcher/releases):
 
 ```bash
 chmod +x ZMP-*.AppImage
