@@ -4,24 +4,28 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Версия без буквы v (например 1.2.3). Используется для всех артефактов и тега v<версия>.'
-        required: true
-        default: '1.0.0'
 
 permissions:
   contents: write
 
 env:
   PYTHON_VERSION: "3.12"
-  APP_VERSION: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || (startsWith(github.ref, 'refs/tags/') && github.ref_name || 'vdev') }}
 
 jobs:
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve version from pyproject.toml
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "APP_VERSION=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          else
+            VER="$(sed -n 's/^version = "\(.*\)"/v\1/p' pyproject.toml | head -1)"
+            echo "APP_VERSION=${VER:-vdev}" >> "$GITHUB_ENV"
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -56,6 +60,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve version from pyproject.toml
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "APP_VERSION=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          else
+            VER="$(sed -n 's/^version = "\(.*\)"/v\1/p' pyproject.toml | head -1)"
+            echo "APP_VERSION=${VER:-vdev}" >> "$GITHUB_ENV"
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -102,6 +116,16 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve version from pyproject.toml
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "APP_VERSION=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          else
+            VER="$(sed -n 's/^version = "\(.*\)"/v\1/p' pyproject.toml | head -1)"
+            echo "APP_VERSION=${VER:-vdev}" >> "$GITHUB_ENV"
+          fi
 
       - name: Create and push version tag if missing
         run: |

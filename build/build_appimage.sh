@@ -2,8 +2,9 @@
 set -euo pipefail
 
 APP_NAME="ZMP"
-VERSION="${1:-dev}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION="${1:-$(sed -n 's/^version = "\(.*\)"/v\1/p' "${SCRIPT_DIR}/../pyproject.toml" | head -1)}"
+VERSION="${VERSION:-dev}"
 DIST_DIR="${SCRIPT_DIR}/../dist"
 BUILD_DIR="${SCRIPT_DIR}/../dist"
 

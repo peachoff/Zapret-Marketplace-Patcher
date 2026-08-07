@@ -4,6 +4,7 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes
 import io
+import json
 import math
 import random
 import sys
@@ -16,8 +17,11 @@ from typing import Any
 import customtkinter as ctk
 from PIL import Image, ImageDraw
 
-from .api_client import MarketplaceAPI
-from .installer import install_mod, remove_mod, load_config
+from .github_client import GitHubClient, GitHubClientError, parse_repo
+from .installer import install_mod, install_zip_file, remove_mod, load_config
+
+REPOS_FILE = Path.home() / ".zmp_repos.json"
+DEFAULT_REPOS = ["peachoff/Zapret-Mods"]
 
 # ── Theme ────────────────────────────────────────────────────
 
@@ -125,8 +129,11 @@ def _ease_out_cubic(t: float) -> float:
     return 1.0 - pow(1.0 - t, 3)
 
 
-def _ease_out_quint(t: float) -> float:
-    return 1.0 - pow(1.0 - t, 5)
+def _parse_repo_safe(value: str) -> str | None:
+    try:
+        return parse_repo(value).full_name
+    except GitHubClientError:
+        return None
 
 
 def _placeholder_icon(size: int = 44) -> Image.Image:
@@ -218,12 +225,14 @@ class App(ctk.CTk):
         elif icon_ico.exists():
             self.iconbitmap(str(icon_ico))
 
-        self.api = MarketplaceAPI()
+        self.gh = GitHubClient()
         self.target_dir: Path | None = None
         self.config_path: Path | None = None
         self.mods: list[dict[str, Any]] = []
         self.busy: str | None = None
         self.catalog_items: list[dict[str, Any]] = []
+        self.repo_info: dict[str, Any] | None = None
+        self.saved_repos: list[str] = self._load_repos()
         self._icon_cache: dict[str, ctk.CTkImage] = {}
 
         self._setup_screen()
@@ -332,6 +341,35 @@ class App(ctk.CTk):
             pass
         return None
 
+    def _load_repos(self) -> list[str]:
+        try:
+            if REPOS_FILE.exists():
+                data = json.loads(REPOS_FILE.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    repos = [str(r).strip() for r in data if str(r).strip()]
+                    if repos:
+                        return repos
+        except Exception:
+            pass
+        return list(DEFAULT_REPOS)
+
+    def _save_repos(self, repos: list[str]) -> None:
+        try:
+            REPOS_FILE.write_text(json.dumps(repos, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _remember_repo(self, value: str) -> None:
+        try:
+            ref = parse_repo(value)
+        except GitHubClientError:
+            return
+        key = ref.full_name
+        repos = [r for r in self.saved_repos if _parse_repo_safe(r) != key]
+        repos.insert(0, key)
+        self.saved_repos = repos[:8]
+        self._save_repos(self.saved_repos)
+
     def _check_saved_folder(self) -> None:
         saved = self._load_saved_folder()
         if saved:
@@ -386,7 +424,7 @@ class App(ctk.CTk):
         for nav_id, icon, label in [
             ("installed", "\U0001F4E6", "Установленные"),
             ("catalog", "\U0001F50D", "Каталог"),
-            ("manual", "\u2795", "По slug"),
+            ("zip", "\U0001F4E6", "Из ZIP"),
         ]:
             btn = ctk.CTkButton(
                 sb, text=f"  {icon}  {label}", anchor="w", height=38,
@@ -435,7 +473,7 @@ class App(ctk.CTk):
         self.page_sub.grid(row=1, column=0, sticky="w", pady=(2, 0))
 
         self.search_frame = ctk.CTkFrame(header, fg_color="transparent")
-        self.search_frame.grid(row=0, column=1, rowspan=2, sticky="e")
+        self.search_frame.grid(row=0, column=1, sticky="e")
         self.search_entry = ctk.CTkEntry(
             self.search_frame, width=240, height=36, placeholder_text="Поиск модов...",
             font=self._f(13), fg_color=BG_ALT, border_color=DIVIDER,
@@ -447,6 +485,24 @@ class App(ctk.CTk):
             self.search_frame, text="Найти", width=80, height=36,
             font=self._f(13), fg_color=ACCENT, hover_color=ACCENT_HOVER,
             corner_radius=8, command=self._do_search,
+        ).pack(side="left")
+
+        self.repo_frame = ctk.CTkFrame(header, fg_color="transparent")
+        self.repo_frame.grid(row=1, column=1, sticky="e", pady=(8, 0))
+        self.repo_combo = ctk.CTkComboBox(
+            self.repo_frame, values=self.saved_repos, width=340, height=34,
+            font=self._f(13), fg_color=BG_ALT, border_color=DIVIDER,
+            text_color=TEXT, button_color=SURFACE_HOVER,
+            button_hover_color="#444", corner_radius=8,
+        )
+        self.repo_combo.set(self.saved_repos[0])
+        self.repo_combo.pack(side="left", padx=(0, 8))
+        self.repo_combo.bind("<Return>", lambda e: self._load_catalog(self.repo_combo.get()))
+        ctk.CTkButton(
+            self.repo_frame, text="Загрузить", width=90, height=34,
+            font=self._f(13), fg_color=BG_ALT, text_color=TEXT,
+            border_width=1, border_color=DIVIDER, corner_radius=8,
+            hover_color=SURFACE_HOVER, command=lambda: self._load_catalog(self.repo_combo.get()),
         ).pack(side="left")
 
         self.scroll = ctk.CTkScrollableFrame(
@@ -464,8 +520,8 @@ class App(ctk.CTk):
         self.current_tab = tab_id
         titles = {
             "installed": ("Установленные моды", "Управление модами"),
-            "catalog": ("Каталог", "Моды из Zapret Marketplace"),
-            "manual": ("Установка по slug", "Введите slug мода вручную"),
+            "catalog": ("Каталог", "Моды из GitHub-репозитория"),
+            "zip": ("Установка из ZIP", "Установите мод из локального ZIP-архива"),
         }
         t = titles[tab_id]
         self.page_title.configure(text=t[0])
@@ -479,10 +535,12 @@ class App(ctk.CTk):
 
         if tab_id == "catalog":
             self.search_frame.grid()
+            self.repo_frame.grid()
             if not self.catalog_items:
-                self.after(100, lambda: self._load_catalog(""))
+                self.after(100, lambda: self._load_catalog(self.repo_combo.get()))
         else:
             self.search_frame.grid_remove()
+            self.repo_frame.grid_remove()
 
         self._fade_content()
 
@@ -516,26 +574,36 @@ class App(ctk.CTk):
         self._toast(f"Загружено модов: {len(self.mods)}", "ok")
 
     def _do_search(self) -> None:
-        self._load_catalog(self.search_entry.get().strip())
+        q = self.search_entry.get().strip().lower()
+        self._render_content(q or None)
 
-    def _load_catalog(self, q: str) -> None:
+    def _load_catalog(self, value: str) -> None:
         self.catalog_items = []
+        self.repo_info = None
         self._render_content()
 
         def _work():
             try:
-                items = self.api.list_projects(q=q or None)
+                ref = parse_repo(value)
+                info = self.gh.get_repo_info(ref)
+                items = self.gh.list_mods(ref)
                 installed = {m["slug"] for m in self.mods}
                 for it in items:
                     it["_installed"] = it["slug"] in installed
-                self.after(0, lambda: self._set_catalog(items))
+                self.after(0, lambda: self._set_catalog(info, items, ref.full_name))
             except Exception as e:
                 self.after(0, lambda: self._toast(str(e), "err"))
 
         threading.Thread(target=_work, daemon=True).start()
 
-    def _set_catalog(self, items: list) -> None:
+    def _set_catalog(self, info: dict, items: list, full_name: str) -> None:
+        self.repo_info = info
         self.catalog_items = items
+        self._remember_repo(full_name)
+        self.repo_combo.configure(values=self.saved_repos)
+        self.repo_combo.set(full_name)
+        if info.get("description"):
+            self.page_sub.configure(text=info["description"])
         self._render_content()
 
     def _install_mod(self, slug: str) -> None:
@@ -545,21 +613,26 @@ class App(ctk.CTk):
         if any(m["slug"] == slug for m in self.mods):
             self._toast(f"'{slug}' уже установлен", "err")
             return
+        item = next((it for it in self.catalog_items if it["slug"] == slug), None)
+        if not item:
+            self._toast(f"Мод '{slug}' не найден в каталоге", "err")
+            return
         self.busy = slug
         self._render_content()
 
         def _work():
             try:
-                project = self.api.get_project(slug)
-                latest = project.get("latest_version") or {}
-                ticket = self.api.create_ticket(slug, latest.get("id"))
                 import tempfile
                 zip_dest = Path(tempfile.gettempdir()) / f"zmp_{slug}.zip"
-                self.api.download_zip(ticket, zip_dest)
-                if not self.api.verify_zip(ticket, zip_dest):
-                    zip_dest.unlink(missing_ok=True)
-                    raise RuntimeError("SHA-256 проверка не пройдена")
-                self.api.complete_ticket(ticket["ticket"], True, zip_dest.stat().st_size)
+                self.gh.download_zip(item["_download_url"], zip_dest)
+                project = {
+                    "slug": item["slug"],
+                    "title": item["title"],
+                    "author": item.get("author", ""),
+                    "summary": item.get("summary", ""),
+                    "compatibility": item.get("compatibility", "zapret"),
+                    "latest_version": {"version": item.get("version", "0.0.0")},
+                }
                 entry = install_mod(zip_dest, self.target_dir, project, self.mods, self.config_path)
                 self.mods = load_config(self.config_path)
                 zip_dest.unlink(missing_ok=True)
@@ -569,12 +642,40 @@ class App(ctk.CTk):
 
         threading.Thread(target=_work, daemon=True).start()
 
+    def _install_zip_file(self) -> None:
+        if not self.target_dir:
+            self._toast("Сначала выберите папку zapret", "err")
+            return
+        path = filedialog.askopenfilename(
+            title="Выберите ZIP-архив мода",
+            filetypes=[("ZIP архив", "*.zip"), ("Все файлы", "*.*")],
+        )
+        if not path:
+            return
+        zip_path = Path(path)
+        self.busy = "zip"
+        self._render_content()
+
+        def _work():
+            try:
+                entry = install_zip_file(zip_path, self.target_dir, self.mods, self.config_path)
+                self.mods = load_config(self.config_path)
+                self.after(0, lambda: self._install_done(entry))
+            except Exception as e:
+                self.after(0, lambda: self._install_err(str(e)))
+
+        threading.Thread(target=_work, daemon=True).start()
+
     def _install_done(self, entry: dict) -> None:
         self.busy = None
         self._toast(f"{entry['name']} v{entry['version']} установлен!", "ok")
+        self._mark_installed()
         self._render_content()
-        if self.current_tab == "catalog":
-            self._load_catalog(self.search_entry.get().strip())
+
+    def _mark_installed(self) -> None:
+        installed = {m["slug"] for m in self.mods}
+        for it in self.catalog_items:
+            it["_installed"] = it["slug"] in installed
 
     def _install_err(self, msg: str) -> None:
         self.busy = None
@@ -630,14 +731,14 @@ class App(ctk.CTk):
         for w in self.scroll.winfo_children():
             w.destroy()
 
-    def _render_content(self) -> None:
+    def _render_content(self, search_q: str | None = None) -> None:
         self._clear()
         if self.current_tab == "installed":
             self._render_installed()
         elif self.current_tab == "catalog":
-            self._render_catalog()
-        elif self.current_tab == "manual":
-            self._render_manual()
+            self._render_catalog(search_q)
+        elif self.current_tab == "zip":
+            self._render_zip()
 
     def _empty(self, title: str, sub: str = "") -> None:
         f = ctk.CTkFrame(self.scroll, fg_color="transparent")
@@ -648,54 +749,60 @@ class App(ctk.CTk):
 
     def _render_installed(self) -> None:
         if not self.mods:
-            self._empty("Модов пока нет", "Перейдите в каталог или установите по slug")
+            self._empty("Модов пока нет", "Перейдите в каталог или установите мод из ZIP")
             return
         for i, m in enumerate(self.mods):
             self._card_mod(m, i)
 
-    def _render_catalog(self) -> None:
+    def _render_catalog(self, search_q: str | None = None) -> None:
         if not self.catalog_items:
             self._empty("Загрузка...", "Подождите...")
             return
-        for i, p in enumerate(self.catalog_items):
-            self._card_project(p, i)
+        items = self.catalog_items
+        if search_q:
+            q = search_q.lower()
+            items = [it for it in items if q in it.get("title", "").lower() or q in it.get("slug", "").lower()]
+        if self.repo_info and self.repo_info.get("description"):
+            ctk.CTkLabel(
+                self.scroll, text=self.repo_info["description"],
+                font=self._f(12), text_color=TEXT_SEC, anchor="w", wraplength=700,
+                justify="left",
+            ).grid(row=0, column=0, sticky="ew", padx=14, pady=(4, 8))
+        if not items:
+            self._empty("Ничего не найдено")
+            return
+        for i, p in enumerate(items):
+            self._card_project(p, i + (1 if self.repo_info and self.repo_info.get("description") else 0))
 
-    def _render_manual(self) -> None:
+    def _render_zip(self) -> None:
         f = ctk.CTkFrame(self.scroll, fg_color=SURFACE, corner_radius=10,
                           border_width=1, border_color=DIVIDER)
         f.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
         f.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(f, text="Установка по slug", font=self._f(15, True),
+        ctk.CTkLabel(f, text="Установка из ZIP-архива", font=self._f(15, True),
                       text_color=TEXT, anchor="w").grid(
             row=0, column=0, sticky="w", padx=20, pady=(20, 2))
-        ctk.CTkLabel(f, text="Введите краткое имя мода из Marketplace",
-                      font=self._f(12), text_color=TEXT_SEC, anchor="w"
-                      ).grid(row=1, column=0, sticky="w", padx=20)
+        ctk.CTkLabel(f, text="Выберите ZIP-архив с модом для zapret. "
+                              ".bat файлы будут скопированы в папку zapret, "
+                              "списки доменов (.txt) объединены, остальные файлы сохранены в mods/.",
+                      font=self._f(12), text_color=TEXT_SEC, anchor="w",
+                      wraplength=620, justify="left"
+                      ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 16))
 
-        row = ctk.CTkFrame(f, fg_color="transparent")
-        row.grid(row=2, column=0, sticky="ew", padx=20, pady=(16, 20))
-        row.grid_columnconfigure(0, weight=1)
-
-        entry = ctk.CTkEntry(
-            row, placeholder_text="shizapret_mod", height=38,
-            font=self._f(13), fg_color=BG_ALT, border_color=DIVIDER,
-            text_color=TEXT, corner_radius=8,
-        )
-        entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
-        entry.bind("<Return>", lambda e: self._install_mod(entry.get().strip()))
-
+        busy = self.busy == "zip"
         ctk.CTkButton(
-            row, text="Установить", width=110, height=38,
-            font=self._f(13), fg_color=ACCENT, hover_color=ACCENT_HOVER,
-            corner_radius=8,
-            command=lambda: self._install_mod(entry.get().strip()),
-        ).grid(row=0, column=1)
+            f, text="Выбрать ZIP-файл...", width=180, height=42,
+            font=self._f(13, True), fg_color=ACCENT, hover_color=ACCENT_HOVER,
+            corner_radius=10, state="disabled" if busy else "normal",
+            command=self._install_zip_file,
+        ).grid(row=2, column=0, sticky="w", padx=20, pady=(0, 24))
 
-        ctk.CTkLabel(
-            f, text="Примеры:  shizapret_mod   ea_fix   fortnayt_anblok",
-            font=self._f(10), text_color=TEXT_SEC, anchor="w",
-        ).grid(row=3, column=0, sticky="w", padx=20, pady=(0, 20))
+        if self.target_dir:
+            ctk.CTkLabel(
+                f, text=f"Папка zapret: {self.target_dir}",
+                font=self._f(11), text_color=TEXT_SEC, anchor="w",
+            ).grid(row=3, column=0, sticky="w", padx=20, pady=(0, 20))
 
     # ── Cards ────────────────────────────────────────────────
 
@@ -757,7 +864,6 @@ class App(ctk.CTk):
         ).grid(row=0, column=2, rowspan=2, padx=14, pady=14, sticky="e")
 
     def _card_project(self, p: dict, row: int) -> None:
-        v = p.get("latest_version") or {}
         card = self._card(row)
         self._card_icon(card, p.get("icon_url"))
 
@@ -767,9 +873,9 @@ class App(ctk.CTk):
                       font=self._f(13, True), text_color=TEXT).pack(side="left")
         self._badge(tf, p.get("compatibility", "zapret")).pack(side="left", padx=(8, 0))
 
-        meta = [f"v{v.get('version', '?')}"]
-        if v.get("file_size_label"):
-            meta.append(v["file_size_label"])
+        meta = [f"v{p.get('version', '?')}"]
+        if p.get("file_size_label"):
+            meta.append(p["file_size_label"])
         meta.append(f"{p.get('downloads_compact', '0')} загр.")
         if p.get("author"):
             meta.append(p["author"])

@@ -217,3 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 Zapret-Hub-main
+
+# Build artifacts
+build/appimagetool
+build/linux_appimage/

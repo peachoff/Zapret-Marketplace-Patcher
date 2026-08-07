@@ -1,7 +1,7 @@
 [project]
 name = "zmp"
-version = "0.2.0"
-description = "Zapret Marketplace Patcher — установщик модов из Zapret Marketplace."
+version = "1.1.0"
+description = "Zapret Modifications Patcher — установщик модов из GitHub-репозиториев и ZIP-архивов."
 authors = [
     {name = "peachoff", email = "peshoff@proton.me"}
 ]
@@ -11,6 +11,7 @@ dependencies = [
     "requests>=2.31.0",
     "pyyaml>=6.0",
     "customtkinter>=5.2.0",
+    "pillow>=10.0.0",
     "packaging",
 ]
 
@@ -22,6 +23,7 @@ python = ">=3.10,<3.15"
 requests = ">=2.31.0"
 pyyaml = ">=6.0"
 customtkinter = ">=5.2.0"
+pillow = ">=10.0.0"
 packaging = ">=21.0"
 
 [tool.poetry.group.build.dependencies]

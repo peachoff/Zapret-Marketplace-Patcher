@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import tempfile
 import zipfile
@@ -12,6 +13,11 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 BLOCKED_EXT = {".exe", ".dll", ".msi", ".cmd", ".com", ".scr", ".vbs", ".js"}
+
+
+def _sanitize_slug(name: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip(".-")
+    return slug or "mod"
 
 
 def _merge_list_file(target: Path, source: Path) -> int:
@@ -69,6 +75,13 @@ def install_mod(
         if blocked:
             raise RuntimeError(f"Заблокированные файлы: {', '.join(blocked)}")
 
+        base = tmp_path
+        firsts = {f.relative_to(tmp_path).parts[0] for f in all_files}
+        if len(firsts) == 1:
+            maybe = tmp_path / next(iter(firsts))
+            if maybe.is_dir():
+                base = maybe
+
         if mod_dir.exists():
             shutil.rmtree(mod_dir)
         mod_dir.mkdir(parents=True, exist_ok=True)
@@ -77,7 +90,7 @@ def install_mod(
         merged_lists: Dict[str, List[str]] = {}
 
         for f in all_files:
-            rel = f.relative_to(tmp_path)
+            rel = f.relative_to(base)
             suffix = rel.suffix.lower()
             if suffix == ".bat":
                 shutil.copy2(f, target_dir / rel.name)
@@ -110,6 +123,24 @@ def install_mod(
     mods.append(entry)
     _save_config(config_path, mods)
     return entry
+
+
+def install_zip_file(
+    zip_path: Path,
+    target_dir: Path,
+    mods: List[Dict[str, Any]],
+    config_path: Path,
+) -> Dict[str, Any]:
+    slug = _sanitize_slug(zip_path.stem)
+    project: Dict[str, Any] = {
+        "slug": slug,
+        "title": slug,
+        "author": "ZIP",
+        "summary": "",
+        "compatibility": "zapret",
+        "latest_version": {"version": "0.0.0"},
+    }
+    return install_mod(zip_path, target_dir, project, mods, config_path)
 
 
 def remove_mod(
