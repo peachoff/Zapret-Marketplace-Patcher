@@ -2,29 +2,32 @@
   <img src="src/zmp/icon.png" width="180" alt="ZMP icon"/>
 </p>
 
-<h1 align="center">ZMP — Zapret Modifications Patcher</h1>
-
 <p align="center">
-  Нативный десктопный клиент для установки модов из пользовательских репозиториев на <b>zapret-discord-youtube</b> и <b>zapret2</b>.
+  <img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="license" />
 </p>
+
+# ZMP — Zapret Modifications Patcher
+
+Нативный кроссплатформенный десктоп-клиент 🖥️ для удобной установки и управления модами из пользовательских репозиториев для проектов вроде **[zapret-discord-youtube](https://github.com/flowseal/zapret-discord-youtube)** и **[zapret2](https://github.com/bol-van/zapret2)**. ✨
 
 ---
 
-## Возможности
+## Ключевые возможности
 
-- **Каталог модов** — просмотр, поиск и установка модов из репозиториев github одним кликом.
-- **Управление** — список установленных модов с информацией о версии, авторе и совместимости.
-- **Автоподстановка папки** — путь к zapret сохраняется между сессиями.
+- 🔍 Просмотр, поиск и установка модов из GitHub-репозиториев в один клик
+- 🧩 Управление установленными модами: версия, автор, совместимость
+- 💾 Сохранение пути к папке zapret между сессиями
+- 🛠️ Простая сборка и портирование под Windows и Linux
 
-## Установка
+## Быстрый старт
+
+1. Перейдите в Releases и скачайте нужный артефакт: https://github.com/peachoff/Zapret-Modifications-Patcher/releases
 
 ### Windows (portable)
 
-Скачайте актуальный релиз из [Releases](https://github.com/peachoff/Zapret-Modifications-Patcher/releases) — файл `.exe` не требует установки.
+Запустите скачанный `.exe` — установка не требуется.
 
 ### Linux (AppImage)
-
-Скачайте `.AppImage` из [Releases](https://github.com/peachoff/Zapret-Modifications-Patcher/releases):
 
 ```bash
 chmod +x ZMP-*.AppImage
@@ -40,11 +43,11 @@ poetry install
 poetry run python main.py
 ```
 
-Требуется **Python 3.10+** и **Poetry**.
+Требуется Python 3.10+ и Poetry.
 
 ## Сборка
 
-### Windows (portable .exe)
+### Windows (.exe)
 
 ```bash
 poetry install
@@ -65,8 +68,13 @@ cd build && ./build_appimage.sh
 
 ## Контакты
 
-По проблемам и вопросам: **[@likeslp](https://t.me/likeslp)**
+По вопросам и багрепортам: **[@likeslp](https://t.me/likeslp)**
+
+## Вклад
+
+Пул-реквесты и issue приветствуются. Для локальной разработки используйте виртуальное окружение и Poetry.
 
 ## Лицензия
 
-MIT
+Этот проект распространяется под лицензией [MIT](https://github.com/peachoff/Zapret-Modifications-Patcher/blob/main/LICENSE) — ссылка на файл лицензии в репозитории.
+
